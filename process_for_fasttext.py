@@ -28,13 +28,8 @@ def create_text_file(data_in, output_filename='data.txt', split=0.8):
             test_file.write('\n')
 
 
-old_name_list = [
-    'Electronics',
-    'Camera',
-    'PC',
-    'Wireless']
 name_list = [
-    'Mobile_Electronics'
+    'Apparel'
 ]
 
 filepath = 'C:\\Users\\toell\\Downloads\\archive'
