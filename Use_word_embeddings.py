@@ -2,7 +2,7 @@ import time
 import fasttext
 import numpy as np
 from sklearn.cluster import KMeans
-from ComputationalTools.Functions import k_means, show_clustering, load_cluster_data, cluster_closeness_matrix
+from Functions import k_means, show_clustering, load_cluster_data, cluster_closeness_matrix
 
 # Full path or else error
 model_path = 'C:\\Users\\toell\\OneDrive\\Documents\\GitHub\\Semester_Two_Notes\\ImageAnalysis\\AZ-sentiment-analysis' \

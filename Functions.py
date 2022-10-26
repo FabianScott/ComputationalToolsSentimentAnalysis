@@ -97,12 +97,6 @@ def other_jac(doc_names, q=9, k=100):
     return Sig
 
 
-def locality_sensitive(Sig, b, r, m):
-    # iterate through bands hashing each band and hashing that hash with % m
-    # with this all pairs in each part of m
-    return
-
-
 def k_means(points, k=10, centroids=None, tol=1e-5, show_cluster=False, title='Clusters Shown'):
     if centroids is None:
         random_indices = np.random.randint(0, len(points), k)
