@@ -10,18 +10,20 @@ import time
 
 
 def create_text_file(data_in, output_filename='data.txt', split=0.8):
-    train_file = open(f'train_{output_filename}', 'a')
-    test_file = open(f'test_{output_filename}', 'a')
+    train_file = open(f'train_{output_filename}', 'w')
+    test_file = open(f'test_{output_filename}', 'w')
     length = len(data_in)
+    cutoff = length*split
     for i, row in enumerate(data_in):
         k = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ! "
-        body = ''.lower()
+        body = ''
         if i % 10000 == 1:
             print(f'{np.round(i / length * 100, 2)} % done')
         for el in row[1]:
             if el in k:
                 body = body + el
-        if random.random() < split:
+        body = body.lower()
+        if i < cutoff:
             train_file.write(f'__label__{int(row[0])} {body}')  # required format
             train_file.write('\n')
         else:

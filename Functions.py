@@ -1,4 +1,6 @@
 import os
+import random
+
 import mmh3
 import numpy as np
 from copy import copy
@@ -74,7 +76,7 @@ def vectorise_text(review_list, fasttext_model, create_file=False, name='Train')
         counter += 1
     if create_file:
         df = pd.DataFrame(output)
-        df.to_csv(f'{name}_fasttext_vectors.csv')
+        df.to_csv(f'{name}_fasttext_vectors.csv', header=True, index=False)
     return output
 
 
@@ -95,46 +97,48 @@ def minhash_text(review_list, q=9, seed=0, minhash_length=100, create_file=False
     output = []
     for review in review_list:
         shingles_list = q_shingles(review[1], q)
-        output.append(minhash(shingles_list, seed=seed, k=minhash_length))
+        output.append(minhash(shingles_list, k=minhash_length))
     if create_file:
         df = pd.DataFrame(output)
-        df.to_csv(f'{name}_minhash_vectors.csv')
+        df.to_csv(f'{name}_minhash_vectors.csv', header=True, index=False)
     return output
 
 
-def q_shingles(string, q):
+def q_shingles(string, q, characters=True):
     """
     Given string and length of shingles, returns a set of
-    all shingles of words in the string.
+    all shingles of characters/words in the string.
+    :param characters:
     :param string:
     :param q:
     :return output:
     """
     output = set()
-    string_list = string.split()
-    length = len(string_list)
-    for i in range(length-q):
-        output.add(tuple(string_list[i:i+q]))
+    if characters:
+        length = len(string)
+        for i in range(length-q):
+            output.add(string[i:i+q])
+    else:
+        string_list = string.split()
+        length = len(string_list)
+        for i in range(length - q):
+            output.add(tuple(string[i:i + q]))
     return output
 
 
-def minhash(shingles_list, seed=0, k=1):
+def minhash(shingles_list, k=1, words=False):
     """
     Given list of shingles of words representing a text, compute the
     list of min-hashes of length k for that text.
     :param shingles_list:
-    :param seed:
     :param k:
     :return minh:
     """
     minh = []
-    for _ in range(k):
+    for i in range(k):  # define the seeds for the hash function
         temp = np.inf
         for shingle in shingles_list:
-            full_string = ''
-            for word in shingle:
-                full_string = full_string + f'{len(word)}word:'
-            min(temp, mmh3.hash(full_string, seed=seed))
+            temp = min(temp, mmh3.hash(shingle, seed=i))
         minh.append(temp)
     return minh
 
@@ -180,23 +184,23 @@ def k_means(points, homemade=False, k=10, centroids=None, tol=1e-5, show_cluster
     :param title:
     :return:
     """
+    points = np.array(points)
     if homemade:
         if centroids is None:
             random_indices = np.random.randint(0, len(points), k)
             centroids = np.array([points[i] for i in random_indices])
 
-        cluster_assignments = np.zeros(len(points))
+        cluster_assignments = np.zeros(len(points), dtype=int)
         temp = np.ones(centroids.shape) - centroids
         while np.array([el > tol for el in np.abs(centroids - temp)]).any():
             temp = copy(centroids)
             # cluster_assignments = [np.argmin(np.sum(np.abs(centroids - point), axis=1)) for i, point in enumerate(points)]
             for i, point in enumerate(points):
                 distances = np.sum(np.abs(centroids - point), axis=1)
-                cluster_assignments[i] = np.argmin(distances)
+                cluster_assignments[i] = int(np.argmin(distances))
             for i in range(k):
                 ci_points = points[cluster_assignments == i]
                 centroids[i] = np.sum(ci_points, axis=0) / len(ci_points)
-
     else:
         k_means_class = KMeans(k, random_state=0)
         k_means_class.fit(points)
@@ -209,6 +213,7 @@ def k_means(points, homemade=False, k=10, centroids=None, tol=1e-5, show_cluster
 
 
 def show_clustering(points, assignments, title='Clusters shown'):
+    points = np.array(points)
     if points.shape[1] > 2:
         print('Show_cluster will only show the first 2 dimensions of points!!')
     cmap = {0: 'b', 1: 'y', 2: 'g', 3: 'r', 4: 'm', 5: 'c', 6: 'k'}
