@@ -9,6 +9,13 @@ from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans, DBSCAN
 
 
+def read_fastext_files(filepath):
+    output = []
+    with open(filepath) as file:
+        output.append(file.readline())
+    return output
+
+
 def load_review_lists(filepath, no_reviews=np.inf):
     """
     Given a filepath to the folder storing all the reviews, this returns
@@ -44,6 +51,7 @@ def load_review_lists(filepath, no_reviews=np.inf):
                 counter += 1
             if counter > no_reviews:
                 break
+    np.seed(2)
     np.random.shuffle(train_list)
     np.random.shuffle(test_list)
     return train_list, test_list
@@ -58,8 +66,11 @@ def load_review_vectors(filepath):
     """
     df = pd.read_csv(filepath)
     output_vectors = df.values[:, 1:]
-    if type(output_vectors[0]) == str:
-        output_vectors = np.array([list(vector) for vector in output_vectors])
+    if type(output_vectors[0][0]) == str:
+        temp = []
+        for vector in output_vectors:
+            temp.append(np.array(vector[0].strip('][').split(), dtype=float))
+        output_vectors = np.array(temp)
     ratings = df.values[:, 0]
 
     return output_vectors, ratings

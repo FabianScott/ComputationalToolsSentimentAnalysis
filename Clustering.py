@@ -11,8 +11,8 @@ model_path = 'C:\\Users\\toell\\OneDrive\\Documents\\GitHub\\AZ-sentiment-analys
 
 t = time.time()
 model = fasttext.load_model(model_path)
-train_minhash_path = os.path.join(os.getcwd(), 'train_minhash_vectors.csv')
-train_fasttext_path = os.path.join(os.getcwd(), 'train_fasttext_vectors.csv')
+train_minhash_path = os.path.join(os.getcwd(), 'test_minhash_vectors.csv')
+train_fasttext_path = os.path.join(os.getcwd(), 'test_fasttext_vectors.csv')
 print(f'Loading data took: {time.time() - t}')
 text_minhashed, minhash_ratings = load_review_vectors(train_minhash_path)
 text_vectors, fasttext_ratings = load_review_vectors(train_fasttext_path)
@@ -31,7 +31,7 @@ hm_labels_minhash = k_means(text_minhashed, k=k, homemade=True, show_cluster=Tru
 print(f'own k_means: {time.time() - t}')
 
 # Proportion of each class in the clusters
-# print(cluster_closeness_matrix(train_list[:][0], sk_labels_vectors))
-# print(cluster_closeness_matrix(train_list[:][0], sk_labels_minhash))
-# print(cluster_closeness_matrix(train_list[:][0], hm_labels_vector))
-# print(cluster_closeness_matrix(train_list[:][0], hm_labels_minhash))
+print(cluster_closeness_matrix(fasttext_ratings, sk_labels_vectors))
+print(cluster_closeness_matrix(minhash_ratings, sk_labels_minhash))
+print(cluster_closeness_matrix(fasttext_ratings, hm_labels_vector))
+print(cluster_closeness_matrix(minhash_ratings, hm_labels_minhash))
