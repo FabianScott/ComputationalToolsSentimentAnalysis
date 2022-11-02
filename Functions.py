@@ -6,7 +6,8 @@ import numpy as np
 from copy import copy
 import pandas as pd
 from matplotlib import pyplot as plt
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering,\
+    Birch, MiniBatchKMeans, SpectralClustering
 
 
 def read_fastext_files(filepath):
@@ -201,11 +202,12 @@ def set_similarity(s1, s2, metric='jac'):
     return output
 
 
-def k_means(points, homemade=False, k=10, centroids=None, tol=1e-5, show_cluster=False, title='Clusters Shown'):
+def clustering(points, method='k_means', homemade=False, k=5, centroids=None, tol=1e-5, show_cluster=False, title='Clusters Shown', birch_thresh=0.01):
     """
     K-means clustering using either the homemade implementation or sk-learn's.
     It can show a 2D plot of the first two dimensions of the clusters.
     In the homemade version the centroids can be specified.
+    :param method:
     :param points:
     :param homemade:
     :param k:
@@ -216,26 +218,42 @@ def k_means(points, homemade=False, k=10, centroids=None, tol=1e-5, show_cluster
     :return:
     """
     points = np.array(points)
-    if homemade:
-        if centroids is None:
-            random_indices = np.random.randint(0, len(points), k)
-            centroids = np.array([points[i] for i in random_indices])
+    if method[0].lower() == 'k':
+        if homemade:
+            if centroids is None:
+                random_indices = np.random.randint(0, len(points), k)
+                centroids = np.array([points[i] for i in random_indices])
 
-        cluster_assignments = np.zeros(len(points), dtype=int)
-        temp = np.ones(centroids.shape) - centroids
-        while np.array([el > tol for el in np.abs(centroids - temp)]).any():
-            temp = copy(centroids)
-            # cluster_assignments = [np.argmin(np.sum(np.abs(centroids - point), axis=1)) for i, point in enumerate(points)]
-            for i, point in enumerate(points):
-                distances = np.sum(np.abs(centroids - point), axis=1)
-                cluster_assignments[i] = int(np.argmin(distances))
-            for i in range(k):
-                ci_points = points[cluster_assignments == i]
-                centroids[i] = np.sum(ci_points, axis=0) / len(ci_points)
-    else:
-        k_means_class = KMeans(k, random_state=0)
-        k_means_class.fit(points)
-        cluster_assignments = k_means_class.labels_
+            cluster_assignments = np.zeros(len(points), dtype=int)
+            temp = np.ones(centroids.shape) - centroids
+            while np.array([el > tol for el in np.abs(centroids - temp)]).any():
+                temp = copy(centroids)
+                # cluster_assignments = [np.argmin(np.sum(np.abs(centroids - point), axis=1)) for i, point in enumerate(points)]
+                for i, point in enumerate(points):
+                    distances = np.sum(np.abs(centroids - point), axis=1)
+                    cluster_assignments[i] = int(np.argmin(distances))
+                for i in range(k):
+                    ci_points = points[cluster_assignments == i]
+                    centroids[i] = np.sum(ci_points, axis=0) / len(ci_points)
+        else:
+            model = KMeans(n_clusters=k).fit(points)
+            cluster_assignments = model.labels_
+    elif method[0].lower() == 'd':
+        model = DBSCAN().fit(points)
+        cluster_assignments = model.labels_
+        print(f'Estimated number of clusters: {model.n_clusters_}')
+    elif method[0].lower() == 'a':
+        model = AgglomerativeClustering(n_clusters=k).fit(points)
+        cluster_assignments = model.labels_
+    elif method[0].lower() == 'b':
+        model = Birch(n_clusters=k, threshold=birch_thresh).fit(points)
+        cluster_assignments = model.labels_
+    elif method[0].lower() == 'm':
+        model = MiniBatchKMeans(n_clusters=k).fit(points)
+        cluster_assignments = model.labels_
+    elif method[0].lower() == 's':
+        model = SpectralClustering(n_clusters=k).fit(points)
+        cluster_assignments = model.labels_
 
     if show_cluster:
         show_clustering(points, cluster_assignments, title=title)
@@ -263,12 +281,15 @@ def cluster_closeness_matrix(true_labels, clusters, decimals=3):
     Calculate the percentage of labels corresponding to each true label
     in each cluster.
     """
-    k = len(np.unique(true_labels))
+    k = len(np.unique(true_labels))     # number of labels
     percent_chance = []
-    for i in range(k):
+    for i in range(k):  # for every label
+        # j is star ratings so between 1-5.
         counts = [np.sum(true_labels[clusters == i] == j) for j in range(1, k + 1)]
-        if any(counts):
+        if any(counts):     # avoid division by 0
             percent_chance.append(counts / sum(counts))
+        else:
+            percent_chance.append([0 for _ in range(k)])
     percent_chance = np.round(np.array(percent_chance), decimals)
     return percent_chance
 
