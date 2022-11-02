@@ -1,6 +1,4 @@
 import os
-import random
-
 import mmh3
 import numpy as np
 from copy import copy
@@ -58,7 +56,7 @@ def load_review_lists(filepath, no_reviews=np.inf):
     return train_list, test_list
 
 
-def load_review_vectors(filepath):
+def load_review_vectors(filepath, no_reviews=None):
     """
     Given the filepath to a csv file containing the vector representation
     of texts return these as np arrays, including the ratings
@@ -73,7 +71,8 @@ def load_review_vectors(filepath):
             temp.append(np.array(vector[0].strip('][').split(), dtype=float))
         output_vectors = np.array(temp)
     ratings = df.values[:, 0]
-
+    if no_reviews is not None:
+        output_vectors, ratings = output_vectors[:no_reviews], ratings[:no_reviews]
     return output_vectors, ratings
 
 
@@ -100,7 +99,7 @@ def vectorise_text(review_list, fasttext_model, create_file=False, name='Train')
     return output
 
 
-def minhash_text(review_list, q=9, seed=0, minhash_length=100, create_file=False, name=''):
+def minhash_text(review_list, q=9, minhash_length=100, create_file=False, name=''):
     """
     Given the review list including the star ratings, return a list
     of each review minhashed. The seed and length of minhash vector
@@ -236,7 +235,7 @@ def clustering(points, method='k_means', homemade=False, k=5, centroids=None, to
                     ci_points = points[cluster_assignments == i]
                     centroids[i] = np.sum(ci_points, axis=0) / len(ci_points)
         else:
-            model = KMeans(n_clusters=k).fit(points)
+            model = KMeans(n_clusters=k, init='k-means++').fit(points)
             cluster_assignments = model.labels_
     elif method[0].lower() == 'd':
         model = DBSCAN().fit(points)
@@ -249,7 +248,7 @@ def clustering(points, method='k_means', homemade=False, k=5, centroids=None, to
         model = Birch(n_clusters=k, threshold=birch_thresh).fit(points)
         cluster_assignments = model.labels_
     elif method[0].lower() == 'm':
-        model = MiniBatchKMeans(n_clusters=k).fit(points)
+        model = MiniBatchKMeans(n_clusters=k, init='k-means++').fit(points)
         cluster_assignments = model.labels_
     elif method[0].lower() == 's':
         model = SpectralClustering(n_clusters=k).fit(points)
@@ -258,7 +257,7 @@ def clustering(points, method='k_means', homemade=False, k=5, centroids=None, to
     if show_cluster:
         show_clustering(points, cluster_assignments, title=title)
 
-    return cluster_assignments
+    return cluster_assignments, model
 
 
 def show_clustering(points, assignments, title='Clusters shown'):
@@ -282,16 +281,55 @@ def cluster_closeness_matrix(true_labels, clusters, decimals=3):
     in each cluster.
     """
     k = len(np.unique(true_labels))     # number of labels
-    percent_chance = []
+    cluster_closeness_mat = []
     for i in range(k):  # for every label
         # j is star ratings so between 1-5.
         counts = [np.sum(true_labels[clusters == i] == j) for j in range(1, k + 1)]
         if any(counts):     # avoid division by 0
-            percent_chance.append(counts / sum(counts))
+            cluster_closeness_mat.append(counts / sum(counts))
         else:
-            percent_chance.append([0 for _ in range(k)])
-    percent_chance = np.round(np.array(percent_chance), decimals)
-    return percent_chance
+            cluster_closeness_mat.append([0 for _ in range(k)])
+    cluster_closeness_mat = np.round(np.array(cluster_closeness_mat), decimals)
+    return cluster_closeness_mat
+
+
+def assign_clusters(m):
+    assignments = np.zeros(5, dtype=int)  # index is cluster found, number is star rating 1-5
+    cluster_closeness_mat = copy(m)
+    while sum(assignments == 0):  # while there is an unassigned cluster
+        argmax, length = np.argmax(cluster_closeness_mat), len(cluster_closeness_mat)
+        max_row = argmax // length
+        max_column = argmax - argmax // length * length
+        star_rating = max_column + 1    # as it must be in the range 1-5
+        # Now check if any cluster has been assigned the current rating, or if the
+        # current cluster has already been assigned a rating
+        if not sum(assignments == star_rating) and not assignments[max_row]:
+            assignments[max_row] = star_rating
+        cluster_closeness_mat[max_row, max_column] = 0
+
+    return assignments
+
+
+def test_error_clusters(test_vectors, train_vectors, assigned_labels, true_labels, knn=15):
+    """
+    Given the test vectors, and vectors on which the cluster was trained
+    find the knn of each point and use majority voting to assign this
+    a label. Count the number of correctly assigned labels and return a
+    proportion of correctly labelled points.
+    :param test_vectors:
+    :param train_vectors:
+    :param assigned_labels:
+    :param true_labels:
+    :param knn:
+    :return:
+    """
+    correct = 0
+    for idx, point in enumerate(test_vectors):
+        distances = np.sum(np.abs(point - train_vectors), axis=1)
+        label = np.bincount(
+            assigned_labels[np.argpartition(distances, knn)[:knn]]).argmax()  # chose lowest if tied
+        correct += label == true_labels[idx]
+    return correct/len(true_labels)
 
 
 def jaccard_estimate(doc1, doc2, q=9, k=100):
