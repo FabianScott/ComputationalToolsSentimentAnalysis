@@ -6,6 +6,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering,\
     Birch, MiniBatchKMeans, SpectralClustering
+from itertools import combinations
 
 
 def read_fastext_files(filepath):
@@ -237,10 +238,6 @@ def clustering(points, method='k_means', homemade=False, k=5, centroids=None, to
         else:
             model = KMeans(n_clusters=k, init='k-means++').fit(points)
             cluster_assignments = model.labels_
-    elif method[0].lower() == 'd':
-        model = DBSCAN().fit(points)
-        cluster_assignments = model.labels_
-        print(f'Estimated number of clusters: {model.n_clusters_}')
     elif method[0].lower() == 'a':
         model = AgglomerativeClustering(n_clusters=k).fit(points)
         cluster_assignments = model.labels_
@@ -293,20 +290,38 @@ def cluster_closeness_matrix(true_labels, clusters, decimals=3):
     return cluster_closeness_mat
 
 
-def assign_clusters(m):
-    assignments = np.zeros(5, dtype=int)  # index is cluster found, number is star rating 1-5
-    cluster_closeness_mat = copy(m)
-    while sum(assignments == 0):  # while there is an unassigned cluster
-        argmax, length = np.argmax(cluster_closeness_mat), len(cluster_closeness_mat)
-        max_row = argmax // length
-        max_column = argmax - argmax // length * length
-        star_rating = max_column + 1    # as it must be in the range 1-5
-        # Now check if any cluster has been assigned the current rating, or if the
-        # current cluster has already been assigned a rating
-        if not sum(assignments == star_rating) and not assignments[max_row]:
-            assignments[max_row] = star_rating
-        cluster_closeness_mat[max_row, max_column] = 0
+def assign_clusters(m, label_counts=None, old_method=False):
+    if old_method:
+        assignments = np.zeros(5, dtype=int)  # index is cluster found, number is star rating 1-5
+        cluster_closeness_mat = copy(m)
+        while sum(assignments == 0):  # while there is an unassigned cluster
+            argmax, length = np.argmax(cluster_closeness_mat), len(cluster_closeness_mat)
+            max_row = argmax // length
+            max_column = argmax - argmax // length * length
+            star_rating = max_column + 1    # as it must be in the range 1-5
+            # Now check if any cluster has been assigned the current rating, or if the
+            # current cluster has already been assigned a rating
+            if not sum(assignments == star_rating) and not assignments[max_row]:
+                assignments[max_row] = star_rating
+            cluster_closeness_mat[max_row, max_column] = 0
+    if label_counts is None:
+        label_counts = np.ones(len(m))
 
+    real = []
+    comb_mat = combinations([(i, j) for i in range(5) for j in range(5)], 5)
+    for el in list(comb_mat):
+        temp = np.array(el)
+        if len(np.unique(temp[:, 0])) == 5 and len(np.unique(temp[:, 1])) == 5:
+            real.append(el)
+    max_i, max_sum = 0, 0
+    for i, coord_set in enumerate(real):
+        temp_sum = 0
+        for j, coord in enumerate(coord_set):
+            temp_sum += m[coord] * label_counts[j]
+        if temp_sum > max_sum:
+            max_sum = temp_sum
+            max_i = i
+    assignments = np.array(real[max_i])[:, 1] + 1
     return assignments
 
 

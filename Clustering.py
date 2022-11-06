@@ -1,5 +1,6 @@
 import os
 import time
+from itertools import combinations
 from Functions import clustering, cluster_closeness_matrix, \
     load_review_vectors, assign_clusters, test_error_clusters
 
@@ -27,7 +28,7 @@ print(f'Loading test data took: {time.time() - t}')
 
 
 proportion_correct, cluster_assignments, cc_mats, models = [], [], [], []
-for i, name in enumerate(cluster_types):
+for i, name in enumerate(cluster_types[:1]):
     # Run the clustering
     t = time.time()
     labels_ft, model_ft = clustering(ft_train_v, method=name)
@@ -50,3 +51,4 @@ for i, name in enumerate(cluster_types):
     cc_mats.append((m1, m2))
     models.append((model_ft, model_mh))
     proportion_correct.append((correct_proportion_ft, correct_proportion_mh))
+print(proportion_correct)
