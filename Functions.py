@@ -1,4 +1,5 @@
 import os
+import re
 import mmh3
 import numpy as np
 from copy import copy
@@ -6,6 +7,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering,\
     Birch, MiniBatchKMeans, SpectralClustering
+from sklearn.mixture import GaussianMixture
 from itertools import combinations
 
 
@@ -51,7 +53,7 @@ def load_review_lists(filepath, no_reviews=np.inf):
                 counter += 1
             if counter > no_reviews:
                 break
-    np.seed(2)
+    np.random.seed(2)
     np.random.shuffle(train_list)
     np.random.shuffle(test_list)
     return train_list, test_list
@@ -64,16 +66,38 @@ def load_review_vectors(filepath, no_reviews=None):
     :param filepath:
     :return:
     """
-    df = pd.read_csv(filepath)
-    output_vectors = df.values[:, 1:]
-    if type(output_vectors[0][0]) == str:
-        temp = []
-        for vector in output_vectors:
-            temp.append(np.array(vector[0].strip('][').split(), dtype=float))
-        output_vectors = np.array(temp)
-    ratings = df.values[:, 0]
     if no_reviews is not None:
-        output_vectors, ratings = output_vectors[:no_reviews], ratings[:no_reviews]
+        temp_vectors, temp_ratings = [], []
+        with open(filepath) as file:
+            # Skip first line
+            file.readline()
+            for _ in range(no_reviews):
+                line = file.readline()
+                temp_ratings.append(int(line[0]))
+                if '"' in line:
+                    temp = ''
+                    while '"' not in temp:
+                        temp = file.readline()
+                        line = line + temp
+                    line = re.split('\s|(?<!\d)[,.](?!\d)', line[2:].strip('"[]\n'))
+                    line = list(filter(None, line))
+                else:
+                    line = line[2:].split(',')
+                # skip index and first comma
+                temp_vectors.append(np.array(line, dtype=float))
+        output_vectors = np.array(temp_vectors)
+        ratings = np.array(temp_ratings)
+    else:
+        df = pd.read_csv(filepath)
+        output_vectors = df.values[:, 1:]
+        if type(output_vectors[0][0]) == str:
+            temp = []
+            for vector in output_vectors:
+                temp.append(np.array(vector[0].strip('][').split(), dtype=float))
+            output_vectors = np.array(temp)
+        ratings = df.values[:, 0]
+        if no_reviews is not None:
+            output_vectors, ratings = output_vectors[:no_reviews], ratings[:no_reviews]
     return output_vectors, ratings
 
 
@@ -250,6 +274,9 @@ def clustering(points, method='k_means', homemade=False, k=5, centroids=None, to
     elif method[0].lower() == 's':
         model = SpectralClustering(n_clusters=k).fit(points)
         cluster_assignments = model.labels_
+    elif method[0].lower() == 'g':
+        model = GaussianMixture(n_components=k, init_params='k-means++').fit(points)
+        cluster_assignments = model.predict(points)
 
     if show_cluster:
         show_clustering(points, cluster_assignments, title=title)
@@ -282,6 +309,7 @@ def cluster_closeness_matrix(true_labels, clusters, decimals=3):
     for i in range(k):  # for every label
         # j is star ratings so between 1-5.
         counts = [np.sum(true_labels[clusters == i] == j) for j in range(1, k + 1)]
+
         if any(counts):     # avoid division by 0
             cluster_closeness_mat.append(counts / sum(counts))
         else:
@@ -308,11 +336,13 @@ def assign_clusters(m, label_counts=None, old_method=False):
         label_counts = np.ones(len(m))
 
     real = []
+    # Create all combinations of mappings:
     comb_mat = combinations([(i, j) for i in range(5) for j in range(5)], 5)
     for el in list(comb_mat):
         temp = np.array(el)
         if len(np.unique(temp[:, 0])) == 5 and len(np.unique(temp[:, 1])) == 5:
             real.append(el)
+    # Calculate the proportion correct from each combination
     max_i, max_sum = 0, 0
     for i, coord_set in enumerate(real):
         temp_sum = 0
@@ -321,16 +351,22 @@ def assign_clusters(m, label_counts=None, old_method=False):
         if temp_sum > max_sum:
             max_sum = temp_sum
             max_i = i
+    # Find the maximum combination
     assignments = np.array(real[max_i])[:, 1] + 1
-    return assignments
+    a_dict = {}
+    # Index is cluster, element is star rating
+    for i, el in enumerate(assignments):
+        a_dict[i] = el
+    return a_dict
 
 
-def test_error_clusters(test_vectors, train_vectors, assigned_labels, true_labels, knn=15):
+def p_correct_clusters(true_labels, test_vectors, cluster_map, assigned_labels=None, train_vectors=None, knn=15, model=None):
     """
     Given the test vectors, and vectors on which the cluster was trained
     find the knn of each point and use majority voting to assign this
     a label. Count the number of correctly assigned labels and return a
     proportion of correctly labelled points.
+    :param cluster_map:
     :param test_vectors:
     :param train_vectors:
     :param assigned_labels:
@@ -338,13 +374,16 @@ def test_error_clusters(test_vectors, train_vectors, assigned_labels, true_label
     :param knn:
     :return:
     """
-    correct = 0
-    for idx, point in enumerate(test_vectors):
-        distances = np.sum(np.abs(point - train_vectors), axis=1)
-        label = np.bincount(
-            assigned_labels[np.argpartition(distances, knn)[:knn]]).argmax()  # chose lowest if tied
-        correct += label == true_labels[idx]
-    return correct/len(true_labels)
+    correct, incorrect = 0, 0
+    if model is None:
+        for idx, point in enumerate(test_vectors):
+            distances = np.sum(np.abs(point - train_vectors), axis=1)
+            label = np.bincount(
+                assigned_labels[np.argpartition(distances, knn)[:knn]]).argmax()  # chose lowest if tied
+            correct += label == true_labels[idx]
+    else:
+        incorrect = np.count_nonzero(true_labels - np.array([cluster_map[el] for el in model.predict(test_vectors)]))
+    return correct/len(true_labels) if correct else (1-incorrect/len(true_labels))
 
 
 def jaccard_estimate(doc1, doc2, q=9, k=100):
