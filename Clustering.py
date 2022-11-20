@@ -8,11 +8,11 @@ from Functions import clustering, cluster_closeness_matrix, \
 
 # knn is number of neighbours to use for assigning a label to a new cluster, k is number of clusters
 knn, k = 9, 5
-n_train, n_test = 10000, 1000
+n_train, n_test = 1000, 100
 cluster_types = ['K-means', 'Minibatch-Kmeans']     # , 'Gaussian-Mixture' , 'Agglomerative', 'Birch', 'Spectral']
 
 
-filename_list = ['train_fasttext', 'test_minhash', 'train_fasttext', 'test_minhash']
+filename_list = ['train_fasttext', 'train_minhash', 'test_fasttext', 'test_minhash']
 path_list = [os.path.join(os.getcwd(), f'{name}_vectors.csv') for name in filename_list]
 
 # Loading Training Data
@@ -29,7 +29,7 @@ print(f'Loading test data took: {time.time() - t}')
 print(f'Shape of test data:\nft: {ft_test_v.shape}\nmh: {mh_test_v.shape}')
 
 
-proportion_correct, cluster_assignments, cc_mats, models = [], [], [], []
+proportion_correct, cluster_assignments, cc_mats, models, weights = [], [], [], [], []
 for i, name in enumerate(cluster_types):
     # Run the clustering
     t = time.time()
@@ -40,11 +40,11 @@ for i, name in enumerate(cluster_types):
 
     t = time.time()
     # Proportion of each class in the clusters, each row is a cluster column is star rating
-    m1 = cluster_closeness_matrix(ft_train_r, labels_ft, decimals=4)
-    m2 = cluster_closeness_matrix(mh_train_r, labels_mh, decimals=4)
+    m1, w1 = cluster_closeness_matrix(ft_train_r, labels_ft, decimals=4)
+    m2, w2 = cluster_closeness_matrix(mh_train_r, labels_mh, decimals=4)
 
     # Using the maximum proportions assign each cluster a star rating, creates a dict:
-    label_map_ft, label_map_mh = assign_clusters(m1), assign_clusters(m2)
+    label_map_ft, label_map_mh = assign_clusters(m1, w1), assign_clusters(m2, w2)
     # Use predict method and compare to the assigned clusters
     correct_proportion_ft = p_correct_clusters(ft_test_r, ft_test_v, label_map_ft, model=model_ft)
     correct_proportion_mh = p_correct_clusters(mh_test_r, mh_test_v, label_map_mh, model=model_mh)
@@ -54,6 +54,8 @@ for i, name in enumerate(cluster_types):
     cluster_assignments.append((label_map_ft, label_map_mh))
     cc_mats.append((m1, m2))
     models.append((model_ft, model_mh))
+    weights.append((w1, w2))
     proportion_correct.append((correct_proportion_ft, correct_proportion_mh))
 
 print(proportion_correct)
+print(f'The proportion of each class in each cluster is: {weights}')

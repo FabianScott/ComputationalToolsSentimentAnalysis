@@ -5,7 +5,7 @@ import numpy as np
 from copy import copy
 import pandas as pd
 from matplotlib import pyplot as plt
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering,\
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, \
     Birch, MiniBatchKMeans, SpectralClustering
 from sklearn.mixture import GaussianMixture
 from itertools import combinations
@@ -110,7 +110,7 @@ def vectorise_text(review_list, fasttext_model, create_file=False, name='Train')
     counter = 0
     for review in review_list:
         if counter % 1000 == 1:
-            print(f'{np.round(100*counter/len(review_list), 6)} % done')
+            print(f'{np.round(100 * counter / len(review_list), 6)} % done')
         text_list = []
         for word in review[1]:
             temp_vector = fasttext_model.get_word_vector(word)
@@ -142,7 +142,7 @@ def minhash_text(review_list, q=9, minhash_length=100, create_file=False, name='
     counter = 0
     for review in review_list:
         if counter % 1000 == 1:
-            print(f'{np.round(100*counter/len(review_list), 6)} % done')
+            print(f'{np.round(100 * counter / len(review_list), 6)} % done')
         shingles_list = q_shingles(review[1], q)
         output.append(minhash(shingles_list, k=minhash_length, stars=int(review[0])))
         counter += 1
@@ -189,8 +189,8 @@ def q_shingles(string, q, characters=True):
     output = set()
     if characters:
         length = len(string)
-        for i in range(length-q):
-            output.add(string[i:i+q])
+        for i in range(length - q):
+            output.add(string[i:i + q])
     else:
         string_list = string.split()
         length = len(string_list)
@@ -217,16 +217,17 @@ def set_similarity(s1, s2, metric='jac'):
     output = 0
     s1, s2 = set(s1), set(s2)
     if metric == 'j':
-        output = len(s1.intersection(s2))/len(s1.union(s2))
+        output = len(s1.intersection(s2)) / len(s1.union(s2))
     elif metric == 's':
-        output = 2*len(s1.intersection(s2))/(len(s1) + len(s2))
+        output = 2 * len(s1.intersection(s2)) / (len(s1) + len(s2))
     elif metric == 'o':
-        output = len(s1.intersection(s2))/min(len(s1), len(s2))
+        output = len(s1.intersection(s2)) / min(len(s1), len(s2))
 
     return output
 
 
-def clustering(points, method='k_means', homemade=False, k=5, centroids=None, tol=1e-5, show_cluster=False, title='Clusters Shown', birch_thresh=0.01):
+def clustering(points, method='k_means', homemade=False, k=5, centroids=None, tol=1e-5, show_cluster=False,
+               title='Clusters Shown', birch_thresh=0.01):
     """
     K-means clustering using either the homemade implementation or sk-learn's.
     It can show a 2D plot of the first two dimensions of the clusters.
@@ -304,47 +305,35 @@ def cluster_closeness_matrix(true_labels, clusters, decimals=3):
     Calculate the percentage of labels corresponding to each true label
     in each cluster.
     """
-    k = len(np.unique(true_labels))     # number of labels
+    k = len(np.unique(true_labels))  # number of labels
     cluster_closeness_mat = []
+    weights = [sum(true_labels == i) for i in range(1, k + 1)]
     for i in range(k):  # for every label
         # j is star ratings so between 1-5.
         counts = [np.sum(true_labels[clusters == i] == j) for j in range(1, k + 1)]
 
-        if any(counts):     # avoid division by 0
+        if any(counts):  # avoid division by 0
             cluster_closeness_mat.append(counts / sum(counts))
         else:
             cluster_closeness_mat.append([0 for _ in range(k)])
     cluster_closeness_mat = np.round(np.array(cluster_closeness_mat), decimals)
-    return cluster_closeness_mat
+    return cluster_closeness_mat, weights
 
 
-def assign_clusters(m, label_counts=None, old_method=False):
-    if old_method:
-        assignments = np.zeros(5, dtype=int)  # index is cluster found, number is star rating 1-5
-        cluster_closeness_mat = copy(m)
-        while sum(assignments == 0):  # while there is an unassigned cluster
-            argmax, length = np.argmax(cluster_closeness_mat), len(cluster_closeness_mat)
-            max_row = argmax // length
-            max_column = argmax - argmax // length * length
-            star_rating = max_column + 1    # as it must be in the range 1-5
-            # Now check if any cluster has been assigned the current rating, or if the
-            # current cluster has already been assigned a rating
-            if not sum(assignments == star_rating) and not assignments[max_row]:
-                assignments[max_row] = star_rating
-            cluster_closeness_mat[max_row, max_column] = 0
+def assign_clusters(m, label_counts=None):
     if label_counts is None:
         label_counts = np.ones(len(m))
 
-    real = []
+    real_combs = []
     # Create all combinations of mappings:
     comb_mat = combinations([(i, j) for i in range(5) for j in range(5)], 5)
     for el in list(comb_mat):
         temp = np.array(el)
         if len(np.unique(temp[:, 0])) == 5 and len(np.unique(temp[:, 1])) == 5:
-            real.append(el)
+            real_combs.append(el)
     # Calculate the proportion correct from each combination
     max_i, max_sum = 0, 0
-    for i, coord_set in enumerate(real):
+    for i, coord_set in enumerate(real_combs):
         temp_sum = 0
         for j, coord in enumerate(coord_set):
             temp_sum += m[coord] * label_counts[j]
@@ -352,7 +341,7 @@ def assign_clusters(m, label_counts=None, old_method=False):
             max_sum = temp_sum
             max_i = i
     # Find the maximum combination
-    assignments = np.array(real[max_i])[:, 1] + 1
+    assignments = np.array(real_combs[max_i])[:, 1] + 1
     a_dict = {}
     # Index is cluster, element is star rating
     for i, el in enumerate(assignments):
@@ -360,7 +349,8 @@ def assign_clusters(m, label_counts=None, old_method=False):
     return a_dict
 
 
-def p_correct_clusters(true_labels, test_vectors, cluster_map, assigned_labels=None, train_vectors=None, knn=15, model=None):
+def p_correct_clusters(true_labels, test_vectors, cluster_map, assigned_labels=None, train_vectors=None, knn=15,
+                       model=None):
     """
     Given the test vectors, and vectors on which the cluster was trained
     find the knn of each point and use majority voting to assign this
@@ -383,7 +373,7 @@ def p_correct_clusters(true_labels, test_vectors, cluster_map, assigned_labels=N
             correct += label == true_labels[idx]
     else:
         incorrect = np.count_nonzero(true_labels - np.array([cluster_map[el] for el in model.predict(test_vectors)]))
-    return correct/len(true_labels) if correct else (1-incorrect/len(true_labels))
+    return correct / len(true_labels) if correct else (1 - incorrect / len(true_labels))
 
 
 def jaccard_estimate(doc1, doc2, q=9, k=100):
@@ -403,13 +393,13 @@ def jaccard_estimate(doc1, doc2, q=9, k=100):
 
     s1 = q_shingles(d1, q)
     s2 = q_shingles(d2, q)
-    print(len(s1.intersection(s2))/len(s1.union(s2)))
+    print(len(s1.intersection(s2)) / len(s1.union(s2)))
     s1 = set(s1)
     s2 = set(s2)
     m1 = set(minhash(s1, k=k))
     m2 = set(minhash(s2, k=k))
 
-    jac = len(m1.intersection(m2))/len(m1.union(m2))
+    jac = len(m1.intersection(m2)) / len(m1.union(m2))
 
     return jac
 
@@ -435,8 +425,8 @@ def other_jac(doc_names, q=9, k=100):
             U.add(q_shingles(text, q=q))
 
     for string in U:
-        string_hash = minhash([string], k=k)    # Returns a list
-        for i, row in enumerate(Sig):           # Iterates through documents
-            for j in range(k):                  # Iterates through hashes
+        string_hash = minhash([string], k=k)  # Returns a list
+        for i, row in enumerate(Sig):  # Iterates through documents
+            for j in range(k):  # Iterates through hashes
                 Sig[i][j] = min(Sig[i][j], string_hash[0])
     return Sig
