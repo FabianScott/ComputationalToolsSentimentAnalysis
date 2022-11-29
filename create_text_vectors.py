@@ -1,9 +1,7 @@
 import os
 import time
 import fasttext
-import numpy as np
-from sklearn.cluster import KMeans
-from Functions import load_review_lists, vectorise_text, minhash_text
+from Functions import load_review_lists, vectorise_text
 
 # Full path or else error
 t = time.time()

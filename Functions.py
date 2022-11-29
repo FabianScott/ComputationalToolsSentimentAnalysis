@@ -199,33 +199,6 @@ def q_shingles(string, q, characters=True):
     return output
 
 
-def set_similarity(s1, s2, metric='jac'):
-    """
-    Given the name of the similarity measure, compute it for
-    the two given list/sets s1 and s2. The options are:
-    Jaccard
-    Sørensen
-    Overlap
-    This function only needs the first letter in the name.
-    :param s1:
-    :param s2:
-    :param metric:
-    :return: similarity measure
-    """
-
-    metric = metric[:1].lower()
-    output = 0
-    s1, s2 = set(s1), set(s2)
-    if metric == 'j':
-        output = len(s1.intersection(s2)) / len(s1.union(s2))
-    elif metric == 's':
-        output = 2 * len(s1.intersection(s2)) / (len(s1) + len(s2))
-    elif metric == 'o':
-        output = len(s1.intersection(s2)) / min(len(s1), len(s2))
-
-    return output
-
-
 def clustering(points, method='k_means', homemade=False, k=5, centroids=None, tol=1e-5, show_cluster=False,
                title='Clusters Shown', birch_thresh=0.01):
     """
@@ -403,30 +376,3 @@ def jaccard_estimate(doc1, doc2, q=9, k=100):
 
     return jac
 
-
-def similar(doc_name_list, q=9, k=100):
-    doc_pairs = set()
-    output = []
-    for doc in doc_name_list:
-        for other_doc in doc_name_list:
-            doc_pairs.add((doc, other_doc))
-    for pair in doc_pairs:
-        if jaccard_estimate(pair[0], pair[1], q=q, k=k) >= 0.6:
-            output.append(pair)
-    return output
-
-
-def other_jac(doc_names, q=9, k=100):
-    Sig = [[np.inf for j in range(k)] for i in range(len(doc_names))]
-    U = set()
-    for doc in doc_names:
-        with open(doc) as f:
-            text = f.read()
-            U.add(q_shingles(text, q=q))
-
-    for string in U:
-        string_hash = minhash([string], k=k)  # Returns a list
-        for i, row in enumerate(Sig):  # Iterates through documents
-            for j in range(k):  # Iterates through hashes
-                Sig[i][j] = min(Sig[i][j], string_hash[0])
-    return Sig

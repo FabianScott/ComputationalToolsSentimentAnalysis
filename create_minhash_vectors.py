@@ -1,7 +1,6 @@
 import os
 import time
-import fasttext
-from Functions import load_review_lists, vectorise_text, minhash_text
+from Functions import load_review_lists, minhash_text
 
 # Full path or else error
 t = time.time()
