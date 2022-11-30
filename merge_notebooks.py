@@ -7,8 +7,8 @@ def read_ipynb(notebook_path):
         return json.load(f)
 
 
-first_notebook = read_ipynb('Brahim DS.ipynb')
-second_notebook = read_ipynb('DS_Project_Nima.ipynb')
+first_notebook = read_ipynb('NimaBrahim.ipynb')
+second_notebook = read_ipynb('fab.ipynb')
 
 
 def write_ipynb(notebook, notebook_path):
@@ -20,4 +20,4 @@ def write_ipynb(notebook, notebook_path):
 final_notebook = copy.deepcopy(first_notebook)
 final_notebook['cells'] = first_notebook['cells'] + second_notebook['cells']
 
-write_ipynb(final_notebook, 'final_notebook.ipynb')
+write_ipynb(final_notebook, 'NimaBrahimFabian.ipynb')
